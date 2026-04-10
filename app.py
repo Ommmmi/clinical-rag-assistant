@@ -1,8 +1,7 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from src.helper import download_hugging_face_embeddings
 from langchain_pinecone import PineconeVectorStore
-from langchain_openai import ChatOpenAI
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -30,7 +29,7 @@ os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 embeddings = download_hugging_face_embeddings()
 
 index_name = "medical-chatbot" 
-# Embed each chunk and upsert the embeddings into your Pinecone index.
+# Embed each chunk and upsert the embeddings into Pinecone index.
 docsearch = PineconeVectorStore.from_existing_index(
     index_name=index_name,
     embedding=embeddings
