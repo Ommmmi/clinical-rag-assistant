@@ -9,4 +9,3 @@ langchain-core
 langchain-groq
 langchain-community==0.3.26
 langchain-huggingface
--e .
