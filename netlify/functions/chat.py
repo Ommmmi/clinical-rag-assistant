@@ -1,33 +1,20 @@
 import os
 import sys
+import json
 
-# Add the parent directory to sys.path to allow importing from 'src'
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the root directory to sys.path to allow importing from 'src'
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 from src.helper import download_hugging_face_embeddings
 from langchain_pinecone import PineconeVectorStore
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
-from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from src.prompt import *
 
-app = Flask(__name__)
-CORS(app)
-
-load_dotenv()
-
-PINECONE_API_KEY=os.environ.get('PINECONE_API_KEY')
-GROQ_API_KEY=os.environ.get('GROQ_API_KEY')
-
-os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
-
-# Pre-initialize embeddings and chain
+# Pre-initialize (Note: In serverless, these might re-run, but Netlify sometimes reuses containers)
 embeddings = download_hugging_face_embeddings()
 index_name = "medical-chatbot" 
 docsearch = PineconeVectorStore.from_existing_index(
@@ -46,23 +33,33 @@ prompt = ChatPromptTemplate.from_messages([
 question_answer_chain = create_stuff_documents_chain(chatModel, prompt)
 rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
+# Note: In-memory history will not persist reliably across calls in serverless
 chat_histories = {}
 
-@app.route("/")
-def home():
-    return "Medical RAG Chatbot API is running!"
+def handler(event, context):
+    # Only allow POST
+    if event['httpMethod'] != 'POST':
+        return {
+            "statusCode": 405,
+            "body": json.dumps({"error": "Method not allowed"})
+        }
 
-@app.route("/get", methods=["GET", "POST"])
-def chat():
-    session_id = "default_user"
-    if request.is_json:
-        msg = request.json.get("msg")
-    else:
-        msg = request.form.get("msg")
+    try:
+        body = json.loads(event['body'])
+        msg = body.get("msg")
+    except Exception:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Invalid JSON or missing 'msg'"})
+        }
     
     if not msg:
-        return jsonify({"error": "No message provided"}), 400
-        
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "No message provided"})
+        }
+
+    session_id = "default_user"
     if session_id not in chat_histories:
         chat_histories[session_id] = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     
@@ -75,7 +72,13 @@ def chat():
     response = rag_chain.invoke(chain_input)
     memory.save_context({"input": msg}, {"output": response["answer"]})
 
-    return jsonify({"answer": str(response["answer"])})
-
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8080)
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*", # Enable CORS
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Methods": "POST, OPTIONS"
+        },
+        "body": json.dumps({"answer": str(response["answer"])})
+    }

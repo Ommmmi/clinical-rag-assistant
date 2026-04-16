@@ -41,9 +41,8 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Use environment variable for API URL or fallback to localhost for development
-      const API_URL = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${API_URL}/get`, {
+      // Netlify Function endpoint (proxied via /api in netlify.toml)
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
