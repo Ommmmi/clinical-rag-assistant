@@ -56,6 +56,7 @@ rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 # In-memory store for chat histories
 chat_histories = {}
 
+@app.route("/api/chat", methods=["POST"])
 @app.route("/get", methods=["GET", "POST"])
 def chat():
     # For simplicity, using a fixed session_id. In a real app, you'd get this from the request.

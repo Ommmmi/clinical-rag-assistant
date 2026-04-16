@@ -41,8 +41,13 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Netlify Function endpoint (proxied via /api in netlify.toml)
-      const response = await fetch('/api/chat', {
+      // Determine the API URL based on environment
+      // In development, we might need to point to localhost:8080
+      // In production (Netlify), we use the relative /api/chat which is proxied
+      const isDev = window.location.hostname === 'localhost';
+      const apiUrl = isDev ? 'http://localhost:8080/api/chat' : '/api/chat';
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
