@@ -41,7 +41,9 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8080/get', {
+      // Use environment variable for API URL or fallback to localhost for development
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_URL}/get`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
