@@ -11,7 +11,7 @@ from langchain_groq import ChatGroq
 from src.prompt import *
 import os
 
-
+print("--- BACKEND STARTING ---")
 
 app = Flask(__name__)
 CORS(app)
@@ -56,8 +56,13 @@ rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 # In-memory store for chat histories
 chat_histories = {}
 
+@app.route("/")
+def index():
+    return "Medical Chatbot Backend is running!"
+
 @app.route("/get", methods=["GET", "POST"])
 def chat():
+    print("Received request to /get")
     # For simplicity, using a fixed session_id. In a real app, you'd get this from the request.
     session_id = "default_user"
 
@@ -83,13 +88,17 @@ def chat():
         "chat_history": memory.chat_memory.messages
     }
 
-    response = rag_chain.invoke(chain_input)
-    
-    # Save the current interaction to memory
-    memory.save_context({"input": msg}, {"output": response["answer"]})
+    try:
+        response = rag_chain.invoke(chain_input)
+        
+        # Save the current interaction to memory
+        memory.save_context({"input": msg}, {"output": response["answer"]})
 
-    print("Response : ", response["answer"])
-    return jsonify({"answer": str(response["answer"])})
+        print("Response : ", response["answer"])
+        return jsonify({"answer": str(response["answer"])})
+    except Exception as e:
+        print(f"Error invoking RAG chain: {e}")
+        return jsonify({"error": "Internal server error during RAG invocation"}), 500
 
 
 
