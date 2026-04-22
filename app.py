@@ -11,7 +11,6 @@ from langchain_groq import ChatGroq
 from src.prompt import *
 import os
 
-
 app = Flask(__name__)
 CORS(app)
 
@@ -23,32 +22,42 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-embeddings = download_hugging_face_embeddings()
-
-index_name = "medical-chatbot"
-
-docsearch = PineconeVectorStore.from_existing_index(
-    index_name=index_name,
-    embedding=embeddings
-)
-
-retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
-
-# ✅ FIX 1: Valid Groq model name
-chatModel = ChatGroq(model="llama-3.1-8b-instant")
-
-
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    MessagesPlaceholder(variable_name="chat_history"),
-    ("human", "{input}"),
-])
-
-question_answer_chain = create_stuff_documents_chain(chatModel, prompt)
-rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-
-# ✅ FIX 2: Use plain list of LangChain messages (ConversationBufferMemory is deprecated)
+# Lazy-loaded — NOT initialized at startup to stay under 512MB
+rag_chain = None
 chat_histories = {}
+
+
+def get_rag_chain():
+    global rag_chain
+    if rag_chain is not None:
+        return rag_chain
+
+    print("Initializing embeddings and RAG chain...")
+    embeddings = download_hugging_face_embeddings()
+
+    docsearch = PineconeVectorStore.from_existing_index(
+        index_name="medical-chatbot",
+        embedding=embeddings
+    )
+
+    retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+    chatModel = ChatGroq(model="llama-3.1-8b-instant")
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+    ])
+
+    question_answer_chain = create_stuff_documents_chain(chatModel, prompt)
+    rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+    print("RAG chain ready.")
+    return rag_chain
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
 
 
 @app.route("/get", methods=["GET", "POST"])
@@ -65,19 +74,19 @@ def chat():
 
     print(f"User message: {msg}")
 
+    chain = get_rag_chain()
+
     if session_id not in chat_histories:
         chat_histories[session_id] = []
 
     history = chat_histories[session_id]
 
-    response = rag_chain.invoke({
+    response = chain.invoke({
         "input": msg,
         "chat_history": history
     })
 
     answer = response["answer"]
-
-    # ✅ FIX 3: Append proper message objects, not using deprecated memory
     history.append(HumanMessage(content=msg))
     history.append(AIMessage(content=answer))
 
