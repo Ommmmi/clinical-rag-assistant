@@ -11,7 +11,15 @@ from langchain_groq import ChatGroq
 from src.prompt import *
 import os
 
+
+from flask import Flask
+
 app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Clinical RAG Assistant is running!"
+
 CORS(app)
 
 load_dotenv()
