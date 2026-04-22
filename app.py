@@ -8,34 +8,27 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from src.prompt import *
+from src.prompt import system_prompt
 import os
 
-
-from flask import Flask
-
+# Flask app setup
 app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Clinical RAG Assistant is running!"
-
 CORS(app)
 
+# Load environment variables
 load_dotenv()
-
 PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
 os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 os.environ["GROQ_API_KEY"] = GROQ_API_KEY
 
-# Lazy-loaded — NOT initialized at startup to stay under 512MB
+# Lazy-loaded chain and chat history
 rag_chain = None
 chat_histories = {}
 
-
 def get_rag_chain():
+    """Initialize the RAG chain once and reuse it."""
     global rag_chain
     if rag_chain is not None:
         return rag_chain
@@ -62,45 +55,49 @@ def get_rag_chain():
     print("RAG chain ready.")
     return rag_chain
 
+# Routes
+@app.route("/")
+def home():
+    return "Clinical RAG Assistant is running!"
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
 
-
-@app.route("/get", methods=["GET", "POST"])
+@app.route("/get", methods=["POST"])
 def chat():
-    session_id = "default_user"
-
-    if request.is_json:
-        msg = request.json.get("msg")
-    else:
-        msg = request.form.get("msg")
+    """Chat endpoint for RAG assistant."""
+    session_id = request.json.get("session_id", "default_user")
+    msg = request.json.get("msg")
 
     if not msg:
         return jsonify({"error": "No message provided"}), 400
 
     print(f"User message: {msg}")
 
-    chain = get_rag_chain()
+    try:
+        chain = get_rag_chain()
 
-    if session_id not in chat_histories:
-        chat_histories[session_id] = []
+        if session_id not in chat_histories:
+            chat_histories[session_id] = []
 
-    history = chat_histories[session_id]
+        history = chat_histories[session_id]
 
-    response = chain.invoke({
-        "input": msg,
-        "chat_history": history
-    })
+        response = chain.invoke({
+            "input": msg,
+            "chat_history": history
+        })
 
-    answer = response["answer"]
-    history.append(HumanMessage(content=msg))
-    history.append(AIMessage(content=answer))
+        answer = response["answer"]
+        history.append(HumanMessage(content=msg))
+        history.append(AIMessage(content=answer))
 
-    print("Response:", answer)
-    return jsonify({"answer": answer})
+        print("Response:", answer)
+        return jsonify({"answer": answer})
 
+    except Exception as e:
+        print("Error in RAG chain:", str(e))
+        return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8080, debug=False)
