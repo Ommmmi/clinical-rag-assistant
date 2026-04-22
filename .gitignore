@@ -1,24 +1,4 @@
-# RAG Data
-data/*.pdf
-
-# Node.js
-node_modules/
-UI/node_modules/
-dist/
-UI/dist/
-.npm/
-package-lock.json
-UI/package-lock.json
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class

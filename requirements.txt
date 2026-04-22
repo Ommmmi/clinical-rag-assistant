@@ -1,12 +1,14 @@
 langchain==0.3.26
-flask==3.1.1 
+flask==3.1.1
 flask-cors
 sentence-transformers==4.1.0
-pypdf==5.6.1 
+pypdf==5.6.1
 python-dotenv==1.1.0
-langchain-pinecone==0.2.8 
-langchain-core 
-langchain-groq
+langchain-pinecone==0.2.8
+langchain-core
+langchain-groq==0.3.2
 langchain-community==0.3.26
 langchain-huggingface
+pinecone-client
+gunicorn
 -e .

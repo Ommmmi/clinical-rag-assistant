@@ -41,7 +41,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8080/get', {
+      const response = await fetch(import.meta.env.VITE_API_URL || 'http://localhost:8080/get', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +178,6 @@ export default function App() {
                 className="flex-1 bg-transparent outline-none text-gray-100 placeholder-gray-400"
                 disabled={isLoading}
               />
-              
             </div>
             <button 
               type="submit"
