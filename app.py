@@ -13,7 +13,9 @@ import os
 
 # Flask app setup
 app = Flask(__name__)
-CORS(app)
+
+# Allow requests from any origin (fixes CORS for Vercel frontend)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Load environment variables
 load_dotenv()
@@ -64,11 +66,19 @@ def home():
 def health():
     return jsonify({"status": "ok"})
 
-@app.route("/get", methods=["POST"])
+@app.route("/get", methods=["GET", "POST", "OPTIONS"])
 def chat():
     """Chat endpoint for RAG assistant."""
-    session_id = request.json.get("session_id", "default_user")
-    msg = request.json.get("msg")
+    # Handle browser preflight OPTIONS request
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    if request.is_json:
+        msg = request.json.get("msg")
+        session_id = request.json.get("session_id", "default_user")
+    else:
+        msg = request.form.get("msg")
+        session_id = "default_user"
 
     if not msg:
         return jsonify({"error": "No message provided"}), 400
