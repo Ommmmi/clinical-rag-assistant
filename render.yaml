@@ -2,10 +2,12 @@ services:
   - type: web
     name: medical-rag-backend
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    pythonVersion: 3.11   # ✅ Pin Python version here
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:8080 --timeout 120
     envVars:
       - key: PINECONE_API_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false
+
