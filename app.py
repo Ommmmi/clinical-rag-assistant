@@ -17,20 +17,21 @@ app = Flask(__name__)
 # Allow requests from any origin (fixes CORS for Vercel frontend)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Load environment variables
+# Load environment variables from .env file (local dev only)
 load_dotenv()
-PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 
-os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+# Safe env var loading — won't crash if a key is missing
+os.environ["PINECONE_API_KEY"] = os.environ.get("PINECONE_API_KEY") or ""
+os.environ["GROQ_API_KEY"] = os.environ.get("GROQ_API_KEY") or ""
+os.environ["HUGGINGFACE_API_KEY"] = os.environ.get("HUGGINGFACE_API_KEY") or ""
 
 # Lazy-loaded chain and chat history
 rag_chain = None
 chat_histories = {}
 
+
 def get_rag_chain():
-    """Initialize the RAG chain once and reuse it."""
+    """Initialize the RAG chain once on first request."""
     global rag_chain
     if rag_chain is not None:
         return rag_chain
@@ -57,18 +58,19 @@ def get_rag_chain():
     print("RAG chain ready.")
     return rag_chain
 
-# Routes
+
 @app.route("/")
 def home():
     return "Clinical RAG Assistant is running!"
+
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
 
+
 @app.route("/get", methods=["GET", "POST", "OPTIONS"])
 def chat():
-    """Chat endpoint for RAG assistant."""
     # Handle browser preflight OPTIONS request
     if request.method == "OPTIONS":
         return jsonify({}), 200
@@ -107,7 +109,8 @@ def chat():
 
     except Exception as e:
         print("Error in RAG chain:", str(e))
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
