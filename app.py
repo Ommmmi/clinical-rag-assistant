@@ -11,41 +11,44 @@ from langchain_groq import ChatGroq
 from src.prompt import system_prompt
 import os
 
-# Flask app setup
-app = Flask(__name__)
-
-# Allow requests from any origin (fixes CORS for Vercel frontend)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-# Load environment variables from .env file (local dev only)
+# Load env vars first
 load_dotenv()
 
-# Safe env var loading — won't crash if a key is missing
-os.environ["PINECONE_API_KEY"] = os.environ.get("PINECONE_API_KEY") or ""
-os.environ["GROQ_API_KEY"] = os.environ.get("GROQ_API_KEY") or ""
-os.environ["HUGGINGFACE_API_KEY"] = os.environ.get("HUGGINGFACE_API_KEY") or ""
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+HUGGINGFACE_API_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
 
-# Lazy-loaded chain and chat history
+os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
+os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+os.environ["HUGGINGFACE_API_KEY"] = HUGGINGFACE_API_KEY
+
+# Flask app
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Lazy globals
 rag_chain = None
 chat_histories = {}
 
 
 def get_rag_chain():
-    """Initialize the RAG chain once on first request."""
     global rag_chain
     if rag_chain is not None:
         return rag_chain
 
-    print("Initializing embeddings and RAG chain...")
+    print("Loading embeddings...")
     embeddings = download_hugging_face_embeddings()
 
+    print("Connecting to Pinecone...")
     docsearch = PineconeVectorStore.from_existing_index(
         index_name="medical-chatbot",
         embedding=embeddings
     )
 
     retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
-    chatModel = ChatGroq(model="llama-3.1-8b-instant")
+
+    print("Loading LLM...")
+    llm = ChatGroq(model="llama-3.1-8b-instant")
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -53,9 +56,9 @@ def get_rag_chain():
         ("human", "{input}"),
     ])
 
-    question_answer_chain = create_stuff_documents_chain(chatModel, prompt)
+    question_answer_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-    print("RAG chain ready.")
+    print("RAG chain ready!")
     return rag_chain
 
 
@@ -71,7 +74,6 @@ def health():
 
 @app.route("/get", methods=["GET", "POST", "OPTIONS"])
 def chat():
-    # Handle browser preflight OPTIONS request
     if request.method == "OPTIONS":
         return jsonify({}), 200
 
@@ -85,7 +87,7 @@ def chat():
     if not msg:
         return jsonify({"error": "No message provided"}), 400
 
-    print(f"User message: {msg}")
+    print(f"[MSG] {msg}")
 
     try:
         chain = get_rag_chain()
@@ -104,11 +106,11 @@ def chat():
         history.append(HumanMessage(content=msg))
         history.append(AIMessage(content=answer))
 
-        print("Response:", answer)
+        print(f"[ANS] {answer[:80]}...")
         return jsonify({"answer": answer})
 
     except Exception as e:
-        print("Error in RAG chain:", str(e))
+        print(f"[ERROR] {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
